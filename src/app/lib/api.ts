@@ -474,3 +474,24 @@ export interface LecturerAnalyticsResponse {
 export function getLecturerAnalytics(token: string) {
   return get<LecturerAnalyticsResponse>("/api/analytics/lecturer", token);
 }
+
+export interface FlashcardResponse {
+  id: string;
+  frontText: string;
+  backText: string;
+}
+
+export function generateFlashcards(
+  resourceId: string, numCards: number, token: string,
+  provider?: string, ollamaModel?: string
+) {
+  return postAuth<FlashcardResponse[]>(
+    "/api/flashcards/generate",
+    { resourceId, numCards, provider: provider ?? null, ollamaModel: ollamaModel ?? null },
+    token
+  );
+}
+
+export function listFlashcards(resourceId: string, token: string) {
+  return get<FlashcardResponse[]>(`/api/flashcards/resource/${resourceId}`, token);
+}

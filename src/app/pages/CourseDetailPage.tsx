@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router";
-import { ChevronLeft, File, User, Download, Trash2, Megaphone, Plus, X, Youtube } from "lucide-react";
+import { ChevronLeft, File, User, Download, Trash2, Megaphone, Plus, X, Youtube, Layers } from "lucide-react";
 import { PRP } from "@/app/lib/constants";
 import { Btn, TypeBadge } from "@/app/components/shared";
 import { useGoTo } from "@/app/router/useGoTo";
 import { useAuth } from "@/app/context/AuthContext";
 import {
   getCourse, listResources, uploadResource, downloadResource, deleteResource,
-  listAnnouncements, createAnnouncement, deleteAnnouncement, searchVideos, ApiError,
-  type CourseResponse, type LearningResourceResponse, type AnnouncementResponse, type VideoResult,
+  listAnnouncements, createAnnouncement, deleteAnnouncement, searchVideos,
+  generateFlashcards, listFlashcards, ApiError,
+  type CourseResponse, type LearningResourceResponse, type AnnouncementResponse,
+  type VideoResult, type FlashcardResponse,
 } from "@/app/lib/api";
+import { FlashcardStudy } from "@/app/components/shared/FlashcardStudy";
 
 export default function CourseDetailPage() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -30,6 +33,9 @@ export default function CourseDetailPage() {
   const [postingAnn, setPostingAnn] = useState(false);
   const [videos, setVideos] = useState<VideoResult[] | null>(null);
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const [expandedFlashcards, setExpandedFlashcards] = useState<string | null>(null);
+  const [flashcardsByResource, setFlashcardsByResource] = useState<Record<string, FlashcardResponse[]>>({});
+  const [flashcardBusy, setFlashcardBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token || !courseId) return;
@@ -116,6 +122,40 @@ export default function CourseDetailPage() {
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Delete failed.");
+    }
+  }
+
+  async function toggleFlashcards(resourceId: string) {
+    if (expandedFlashcards === resourceId) {
+      setExpandedFlashcards(null);
+      return;
+    }
+    setExpandedFlashcards(resourceId);
+
+    if (!flashcardsByResource[resourceId] && token) {
+      setFlashcardBusy(resourceId);
+      try {
+        const cards = await listFlashcards(resourceId, token);
+        setFlashcardsByResource((prev) => ({ ...prev, [resourceId]: cards }));
+      } catch {
+        setFlashcardsByResource((prev) => ({ ...prev, [resourceId]: [] }));
+      } finally {
+        setFlashcardBusy(null);
+      }
+    }
+  }
+
+  async function handleGenerateFlashcards(resourceId: string) {
+    if (!token) return;
+    setFlashcardBusy(resourceId);
+    setError(null);
+    try {
+      const cards = await generateFlashcards(resourceId, 10, token);
+      setFlashcardsByResource((prev) => ({ ...prev, [resourceId]: cards }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not generate flashcards.");
+    } finally {
+      setFlashcardBusy(null);
     }
   }
 
@@ -248,33 +288,64 @@ export default function CourseDetailPage() {
             )}
             <div className="space-y-1.5">
               {resources.map((res) => (
-                <div key={res.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--lm-surface)] transition-colors">
-                  <File size={14} className="text-[var(--lm-text-faint)] flex-shrink-0" />
-                  <span className="text-sm text-[var(--lm-text)] flex-1 truncate">{res.title}</span>
-                  <TypeBadge type={res.fileType} />
-                  <span className="text-[10px] text-[var(--lm-text-faint)]">{res.uploadedByName}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (token && courseId) {
-                        downloadResource(courseId, res.id, res.title, token)
-                          .catch((err) => setError(err instanceof ApiError ? err.message : "Download failed."));
-                      }
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-[var(--lm-card-bg)] text-[var(--lm-text-muted)] hover:text-[#7C3AED] transition-colors flex-shrink-0"
-                    title="Download"
-                  >
-                    <Download size={14} />
-                  </button>
-                  {isLecturer && (
+                <div key={res.id}>
+                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--lm-surface)] transition-colors">
+                    <File size={14} className="text-[var(--lm-text-faint)] flex-shrink-0" />
+                    <span className="text-sm text-[var(--lm-text)] flex-1 truncate">{res.title}</span>
+                    <TypeBadge type={res.fileType} />
+                    <span className="text-[10px] text-[var(--lm-text-faint)]">{res.uploadedByName}</span>
                     <button
                       type="button"
-                      onClick={() => handleDelete(res.id)}
-                      className="p-1.5 rounded-lg hover:bg-[#FEF2F2] text-[var(--lm-text-muted)] hover:text-[#DC2626] transition-colors flex-shrink-0"
-                      title="Delete"
+                      onClick={() => toggleFlashcards(res.id)}
+                      className={`p-1.5 rounded-lg hover:bg-[var(--lm-card-bg)] transition-colors flex-shrink-0 ${expandedFlashcards === res.id ? "text-[#7C3AED]" : "text-[var(--lm-text-muted)] hover:text-[#7C3AED]"}`}
+                      title="Flashcards"
                     >
-                      <Trash2 size={14} />
+                      <Layers size={14} />
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (token && courseId) {
+                          downloadResource(courseId, res.id, res.title, token)
+                            .catch((err) => setError(err instanceof ApiError ? err.message : "Download failed."));
+                        }
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-[var(--lm-card-bg)] text-[var(--lm-text-muted)] hover:text-[#7C3AED] transition-colors flex-shrink-0"
+                      title="Download"
+                    >
+                      <Download size={14} />
+                    </button>
+                    {isLecturer && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(res.id)}
+                        className="p-1.5 rounded-lg hover:bg-[#FEF2F2] text-[var(--lm-text-muted)] hover:text-[#DC2626] transition-colors flex-shrink-0"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {expandedFlashcards === res.id && (
+                    <div className="ml-9 mr-3 mb-3 p-4 bg-[var(--lm-surface)] rounded-xl">
+                      {flashcardBusy === res.id && (
+                        <p className="text-xs text-[var(--lm-text-faint)] text-center py-4">Loading…</p>
+                      )}
+                      {flashcardBusy !== res.id && (flashcardsByResource[res.id]?.length ?? 0) === 0 && (
+                        <div className="text-center py-4">
+                          <p className="text-xs text-[var(--lm-text-faint)] mb-3">No flashcards yet for this resource.</p>
+                          {isLecturer && (
+                            <Btn variant="gradient" size="sm" onClick={() => handleGenerateFlashcards(res.id)}>
+                              <Plus size={12} /> Generate Flashcards
+                            </Btn>
+                          )}
+                        </div>
+                      )}
+                      {flashcardBusy !== res.id && (flashcardsByResource[res.id]?.length ?? 0) > 0 && (
+                        <FlashcardStudy cards={flashcardsByResource[res.id]} />
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
