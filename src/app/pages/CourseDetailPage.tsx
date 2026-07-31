@@ -335,11 +335,14 @@ export default function CourseDetailPage() {
                       {flashcardBusy !== res.id && (flashcardsByResource[res.id]?.length ?? 0) === 0 && (
                         <div className="text-center py-4">
                           <p className="text-xs text-[var(--lm-text-faint)] mb-3">No flashcards yet for this resource.</p>
-                          {isLecturer && (
-                            <Btn variant="gradient" size="sm" onClick={() => handleGenerateFlashcards(res.id)}>
-                              <Plus size={12} /> Generate Flashcards
-                            </Btn>
-                          )}
+                          {flashcardBusy !== res.id && (flashcardsByResource[res.id]?.length ?? 0) === 0 && (
+                        <div className="text-center py-4">
+                          <p className="text-xs text-[var(--lm-text-faint)] mb-3">No flashcards yet for this resource.</p>
+                          <Btn variant="gradient" size="sm" onClick={() => handleGenerateFlashcards(res.id)}>
+                            <Plus size={12} /> Generate Flashcards
+                          </Btn>
+                        </div>
+                      )}
                         </div>
                       )}
                       {flashcardBusy !== res.id && (flashcardsByResource[res.id]?.length ?? 0) > 0 && (

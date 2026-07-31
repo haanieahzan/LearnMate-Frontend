@@ -349,6 +349,7 @@ export interface SkillAreaScore {
   courseCode: string;
   averageScore: number;
   attemptCount: number;
+  resourceId: string | null;
 }
 
 export interface QuizAttemptSummary {
@@ -402,6 +403,7 @@ export interface RecommendationResponse {
   description: string;
   courseId: string | null;
   quizId: string | null;
+  resourceId: string | null;
 }
 
 export function getRecommendations(token: string) {

@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
-import { Target, HelpCircle, Sparkles, ArrowRight, AlertCircle, Youtube } from "lucide-react";
+import { Target, HelpCircle, Sparkles, ArrowRight, AlertCircle, Youtube, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { PRP, IND } from "@/app/lib/constants";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGoTo } from "@/app/router/useGoTo";
-import { getRecommendations, searchVideos, ApiError, type RecommendationResponse, type VideoResult } from "@/app/lib/api";
+import {
+  getRecommendations, searchVideos, getCurrentSkills, generateFlashcards, listFlashcards, ApiError,
+  type RecommendationResponse, type VideoResult, type FieldScore, type FlashcardResponse,
+} from "@/app/lib/api";
+import { FlashcardStudy } from "@/app/components/shared/FlashcardStudy";
+
 
 
 // ─── AI Recommendations page ──────────────────────────────────────────────────
@@ -23,13 +28,19 @@ export default function AIRecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationResponse[]>([]);
   const [videosByIndex, setVideosByIndex] = useState<Record<number, VideoResult[]>>({});
   const [loadingVideosIndex, setLoadingVideosIndex] = useState<number | null>(null);
+
+  const [flashcardsByKey, setFlashcardsByKey] = useState<Record<string, FlashcardResponse[]>>({});
+  const [expandedFlashcardKey, setExpandedFlashcardKey] = useState<string | null>(null);
+  const [flashcardBusyKey, setFlashcardBusyKey] = useState<string | null>(null);
+
+  const [allSkills, setAllSkills] = useState<FieldScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    getRecommendations(token)
-      .then(setRecommendations)
+    Promise.all([getRecommendations(token), getCurrentSkills(token)])
+      .then(([recs, fields]) => { setRecommendations(recs); setAllSkills(fields); })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load recommendations."))
       .finally(() => setLoading(false));
   }, [token]);
@@ -48,6 +59,39 @@ export default function AIRecommendationsPage() {
       setVideosByIndex((prev) => ({ ...prev, [index]: [] }));
     } finally {
       setLoadingVideosIndex(null);
+    }
+  }
+  async function toggleFlashcards(key: string, resourceId: string | null) {
+    if (!resourceId) return;
+    if (expandedFlashcardKey === key) {
+      setExpandedFlashcardKey(null);
+      return;
+    }
+    setExpandedFlashcardKey(key);
+
+    if (!flashcardsByKey[key] && token) {
+      setFlashcardBusyKey(key);
+      try {
+        const cards = await listFlashcards(resourceId, token);
+        setFlashcardsByKey((prev) => ({ ...prev, [key]: cards }));
+      } catch {
+        setFlashcardsByKey((prev) => ({ ...prev, [key]: [] }));
+      } finally {
+        setFlashcardBusyKey(null);
+      }
+    }
+  }
+
+  async function handleGenerateFlashcards(key: string, resourceId: string | null) {
+    if (!resourceId || !token) return;
+    setFlashcardBusyKey(key);
+    try {
+      const cards = await generateFlashcards(resourceId, 10, token);
+      setFlashcardsByKey((prev) => ({ ...prev, [key]: cards }));
+    } catch {
+      // leave as-is; the panel will show the "no cards" state and a retry option
+    } finally {
+      setFlashcardBusyKey(null);
     }
   }
 
@@ -107,16 +151,44 @@ export default function AIRecommendationsPage() {
                   >
                     {meta.cta} <ArrowRight size={12} />
                   </button>
-                  {rec.type === "weak_skill" && (
-                    <button
-                      onClick={() => handleFindVideos(i, rec.title.replace(/^Review:\s*/, ""))}
-                      disabled={loadingVideosIndex === i}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                    >
-                      <Youtube size={12} /> {loadingVideosIndex === i ? "Searching…" : "Find Videos"}
-                    </button>
+                  {rec.type === "weak_skill" && rec.resourceId && (
+                    <>
+                      <button
+                        onClick={() => toggleFlashcards(`rec-${i}`, rec.resourceId)}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border-2 border-[#7C3AED] text-[#7C3AED] hover:bg-[var(--lm-surface)] transition-colors"
+                      >
+                        <Layers size={12} /> Study Flashcards
+                      </button>
+                      <button
+                        onClick={() => handleFindVideos(i, rec.title.replace(/^Review:\s*/, ""))}
+                        disabled={loadingVideosIndex === i}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        <Youtube size={12} /> {loadingVideosIndex === i ? "Searching…" : "Find Videos"}
+                      </button>
+                    </>
                   )}
                 </div>
+
+                {expandedFlashcardKey === `rec-${i}` && (
+                  <div className="mb-3 p-4 bg-[var(--lm-surface)] rounded-xl">
+                    {flashcardBusyKey === `rec-${i}` && <p className="text-xs text-[var(--lm-text-faint)] text-center py-4">Loading…</p>}
+                    {flashcardBusyKey !== `rec-${i}` && (flashcardsByKey[`rec-${i}`]?.length ?? 0) === 0 && (
+                      <div className="text-center py-2">
+                        <p className="text-xs text-[var(--lm-text-faint)] mb-3">No flashcards yet for this skill.</p>
+                        <button
+                          onClick={() => handleGenerateFlashcards(`rec-${i}`, rec.resourceId)}
+                          className="text-xs font-bold px-3 py-2 rounded-xl text-white bg-[#7C3AED] hover:opacity-90 transition-opacity"
+                        >
+                          Generate Flashcards
+                        </button>
+                      </div>
+                    )}
+                    {flashcardBusyKey !== `rec-${i}` && (flashcardsByKey[`rec-${i}`]?.length ?? 0) > 0 && (
+                      <FlashcardStudy cards={flashcardsByKey[`rec-${i}`]} />
+                    )}
+                  </div>
+                )}
 
                 {videosByIndex[i] && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -140,6 +212,50 @@ export default function AIRecommendationsPage() {
           );
         })}
       </div>
+      {allSkills.length > 0 && (
+        <div className="bg-[var(--lm-card-bg)] rounded-2xl border border-[var(--lm-border)] shadow-sm p-5">
+          <h3 className="text-sm font-bold text-[var(--lm-text)] mb-1">All Skills — Flashcards</h3>
+          <p className="text-xs text-[var(--lm-text-faint)] mb-4">Study flashcards for any skill area, not just the ones flagged above.</p>
+          <div className="space-y-2">
+            {allSkills.flatMap((f) => f.skills).map((s, i) => {
+              const key = `skill-${i}`;
+              return (
+                <div key={key}>
+                  <button
+                    onClick={() => toggleFlashcards(key, s.resourceId)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[var(--lm-surface)] transition-colors text-left"
+                  >
+                    <span className="text-xs font-medium text-[var(--lm-text)]">{s.skillArea}</span>
+                    <span className="flex items-center gap-1.5 text-[10px] text-[var(--lm-text-faint)]">
+                      <Layers size={11} /> Flashcards
+                      {expandedFlashcardKey === key ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </span>
+                  </button>
+                  {expandedFlashcardKey === key && (
+                    <div className="mx-3 mb-2 p-4 bg-[var(--lm-surface)] rounded-xl">
+                      {flashcardBusyKey === key && <p className="text-xs text-[var(--lm-text-faint)] text-center py-4">Loading…</p>}
+                      {flashcardBusyKey !== key && (flashcardsByKey[key]?.length ?? 0) === 0 && (
+                        <div className="text-center py-2">
+                          <p className="text-xs text-[var(--lm-text-faint)] mb-3">No flashcards yet.</p>
+                          <button
+                            onClick={() => handleGenerateFlashcards(key, s.resourceId)}
+                            className="text-xs font-bold px-3 py-2 rounded-xl text-white bg-[#7C3AED] hover:opacity-90 transition-opacity"
+                          >
+                            Generate Flashcards
+                          </button>
+                        </div>
+                      )}
+                      {flashcardBusyKey !== key && (flashcardsByKey[key]?.length ?? 0) > 0 && (
+                        <FlashcardStudy cards={flashcardsByKey[key]} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-[#FAF8FF] border border-[var(--lm-border)] rounded-2xl p-4 flex items-start gap-3">
         <AlertCircle size={15} className="text-[var(--lm-text-faint)] flex-shrink-0 mt-0.5" />
