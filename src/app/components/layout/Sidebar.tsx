@@ -11,7 +11,6 @@ const studentNav = [
   { id: "ai-tutor",           label: "AI Tutor",          icon: Bot },
   { id: "ai-recommendations", label: "Recommendations",   icon: Lightbulb },
   { id: "progress",           label: "Progress",          icon: BarChart3 },
-  { id: "study-plan",         label: "Study Plan",        icon: Calendar },
   { id: "skills",             label: "Skills",            icon: Target },
   { id: "quiz",               label: "Quiz Center",       icon: HelpCircle },
 ];

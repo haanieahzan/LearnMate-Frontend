@@ -65,7 +65,6 @@ export default function App() {
                 <Route path="ai-tutor" element={<AITutorPage />} />
                 <Route path="ai-recommendations" element={<AIRecommendationsPage />} />
                 <Route path="progress" element={<ProgressPage />} />
-                <Route path="study-plan" element={<StudyPlanPage />} />
                 <Route path="skills" element={<SkillsPage />} />
                 <Route path="quiz" element={<QuizPage />} />
                 <Route path="profile" element={<ProfilePage />} />

@@ -497,3 +497,52 @@ export function generateFlashcards(
 export function listFlashcards(resourceId: string, token: string) {
   return get<FlashcardResponse[]>(`/api/flashcards/resource/${resourceId}`, token);
 }
+
+export function forgotPassword(email: string) {
+  return post<{ message: string; resetToken?: string }>("/api/auth/forgot-password", { email });
+}
+
+export function resetPassword(token: string, newPassword: string) {
+  return post<{ message: string }>("/api/auth/reset-password", { token, newPassword });
+}
+
+export interface ProfileResponse {
+  fullName: string;
+  email: string;
+  role: "STUDENT" | "LECTURER" | "ADMIN";
+  phone: string | null;
+  bio: string | null;
+  university: string | null;
+  studentNumber: string | null;
+  degreeProgramme: string | null;
+  yearOfStudy: number | null;
+  expectedGraduation: string | null;
+}
+
+export function getProfile(token: string) {
+  return get<ProfileResponse>("/api/profile", token);
+}
+
+export async function updateProfile(
+  updates: Partial<Omit<ProfileResponse, "email" | "role">>,
+  token: string
+): Promise<ProfileResponse> {
+  const res = await fetch(`${API_URL}/api/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(updates),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data.message ?? "Could not update profile.", res.status);
+  return data as ProfileResponse;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string, token: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/profile/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data.message ?? "Could not change password.", res.status);
+}

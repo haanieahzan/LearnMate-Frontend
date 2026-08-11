@@ -13,7 +13,6 @@ export const ROUTES: Record<string, string> = {
   "ai-tutor": "/app/ai-tutor",
   "ai-recommendations": "/app/ai-recommendations",
   progress: "/app/progress",
-  "study-plan": "/app/study-plan",
   skills: "/app/skills",
   quiz: "/app/quiz",
   profile: "/app/profile",
