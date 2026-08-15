@@ -4,17 +4,21 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, ResponsiveContai
 import { PRP, IND } from "@/app/lib/constants";
 import { useAuth } from "@/app/context/AuthContext";
 import {
-  getStudentAnalytics, getSkillsHistory, getStreak, ApiError,
-  type StudentAnalyticsResponse, type QuizAttemptSummary, type StreakResponse,
+  getStudentAnalytics, getSkillsHistory, getStreak, getCurrentSkills, ApiError,
+  type StudentAnalyticsResponse, type QuizAttemptSummary, type StreakResponse, type FieldScore,
 } from "@/app/lib/api";
+import { exportSkillsAndProgressPdf } from "@/app/lib/exportPdf"; 
+import { Download } from "lucide-react";
+
 
 // ─── Progress & Analytics page ────────────────────────────────────────────────
 // Every chart here is built from real quiz attempt timestamps/scores — no
 // fabricated session counts, study hours, or resource-usage stats.
 
 export default function ProgressPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [analytics, setAnalytics] = useState<StudentAnalyticsResponse | null>(null);
+  const [fields, setFields] = useState<FieldScore[]>([]);
   const [history, setHistory] = useState<QuizAttemptSummary[]>([]);
   const [streak, setStreak] = useState<StreakResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,8 +26,8 @@ export default function ProgressPage() {
 
   useEffect(() => {
     if (!token) return;
-    Promise.all([getStudentAnalytics(token), getSkillsHistory(token), getStreak(token)])
-      .then(([a, h, s]) => { setAnalytics(a); setHistory(h); setStreak(s); })
+    Promise.all([getStudentAnalytics(token), getSkillsHistory(token), getStreak(token), getCurrentSkills(token)])
+      .then(([a, h, s, f]) => { setAnalytics(a); setHistory(h); setStreak(s); setFields(f); })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load progress data."))
       .finally(() => setLoading(false));
   }, [token]);
@@ -68,13 +72,40 @@ export default function ProgressPage() {
     return 4;
   }
 
+  function handleExport() {
+    if (!analytics || !streak) return;
+    exportSkillsAndProgressPdf({
+      studentName: user?.fullName ?? "Student",
+      totalCourses: analytics.totalCourses,
+      quizzesTaken: analytics.quizzesTaken,
+      averageScore: Number(analytics.averageScore),
+      currentStreak: streak.currentStreak,
+      longestStreak: streak.longestStreak,
+      fields,
+      recentAttempts: analytics.recentAttempts,
+    });
+  }
+
+  
+
   if (loading) {
     return <div className="p-6 text-sm text-[var(--lm-text-faint)]">Loading…</div>;
   }
+  
 
   return (
     <div className="p-6 space-y-6">
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleExport}
+          disabled={!analytics}
+          className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border border-[var(--lm-border)] text-[var(--lm-text-muted)] hover:bg-[var(--lm-surface)] transition-colors disabled:opacity-50"
+        >
+          <Download size={13} /> Export PDF
+        </button>
+      </div>
 
       {analytics && (
         <>
