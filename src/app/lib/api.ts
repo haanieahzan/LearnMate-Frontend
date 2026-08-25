@@ -145,9 +145,14 @@ export interface QuizQuestionResponse {
 export interface QuizResponse {
   id: string;
   courseId: string;
+  courseCode: string;
   title: string;
+  skillLabel: string | null;
+  difficulty: string | null;
+  questionFormat: string | null;
   createdAt: string;
   questions: QuizQuestionResponse[];
+  published: boolean;
 }
 
 export interface QuestionResult {
@@ -173,12 +178,12 @@ export function listQuizzesByCourse(courseId: string, token: string) {
 }
 
 export function generateQuiz(
-  resourceId: string, numQuestions: number, difficulty: string, token: string,
-  provider?: "gemini" | "ollama", ollamaModel?: string
+  resourceId: string, numQuestions: number, difficulty: string, questionFormat: string, token: string,
+  provider?: string, ollamaModel?: string
 ) {
   return postAuth<QuizResponse>(
     "/api/quizzes/generate",
-    { resourceId, numQuestions, difficulty, provider: provider ?? null, ollamaModel: ollamaModel ?? null },
+    { resourceId, numQuestions, difficulty, questionFormat, provider: provider ?? null, ollamaModel: ollamaModel ?? null },
     token
   );
 }
@@ -545,4 +550,58 @@ export async function changePassword(currentPassword: string, newPassword: strin
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(data.message ?? "Could not change password.", res.status);
+}
+
+export function searchQuizzes(token: string, topic?: string, format?: string) {
+  const params = new URLSearchParams();
+  if (topic) params.set("topic", topic);
+  if (format) params.set("format", format);
+  return get<QuizResponse[]>(`/api/quizzes/search?${params.toString()}`, token);
+}
+
+export interface QuizQuestionReviewResponse {
+  id: string;
+  questionText: string;
+  questionType: string;
+  options: string[];
+  correctAnswer: string;
+}
+
+export function getQuizForReview(quizId: string, token: string) {
+  return get<QuizQuestionReviewResponse[]>(`/api/quizzes/${quizId}/review`, token);
+}
+
+export async function updateQuestion(
+  questionId: string, questionText: string, options: string[], correctAnswer: string, token: string
+): Promise<void> {
+  const res = await fetch(`${API_URL}/api/quizzes/questions/${questionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ questionText, options, correctAnswer }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(data.message ?? "Could not update question.", res.status);
+  }
+}
+
+export async function deleteQuestion(questionId: string, token: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/quizzes/questions/${questionId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(data.message ?? "Could not delete question.", res.status);
+  }
+}
+
+export async function publishQuiz(quizId: string, token: string): Promise<QuizResponse> {
+  const res = await fetch(`${API_URL}/api/quizzes/${quizId}/publish`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data.message ?? "Could not publish quiz.", res.status);
+  return data as QuizResponse;
 }
