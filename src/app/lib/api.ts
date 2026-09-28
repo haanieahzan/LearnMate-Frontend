@@ -31,6 +31,31 @@ export interface CourseResponse {
   createdAt: string;
 }
 
+export interface CourseAnalytics {
+  courseId: string;
+  courseCode: string;
+  courseTitle: string;
+  quizCount: number;
+  totalAttempts: number;
+  classAverage: number;
+  atRiskStudents: AtRiskStudent[];
+  allStudents: AtRiskStudent[];
+}
+
+export interface CourseProgressResponse {
+  courseId: string;
+  courseCode: string | null;
+  courseTitle: string | null;
+  quizzesTaken: number;
+  averageScore: number;
+  skills: SkillAreaScore[];
+  recentAttempts: RecentAttemptSummary[];
+}
+
+export function getStudentCourseAnalytics(courseId: string, token: string) {
+  return get<CourseProgressResponse>(`/api/analytics/student/course/${courseId}`, token);
+}
+
 async function get<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -605,3 +630,4 @@ export async function publishQuiz(quizId: string, token: string): Promise<QuizRe
   if (!res.ok) throw new ApiError(data.message ?? "Could not publish quiz.", res.status);
   return data as QuizResponse;
 }
+

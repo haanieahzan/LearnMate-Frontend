@@ -79,30 +79,36 @@ export default function LecturerPage() {
                     </div>
                   </button>
 
-                  {isExpanded && (
-                    <div className="border-t border-[var(--lm-border)] p-5">
-                      {course.atRiskStudents.length === 0 ? (
-                        <p className="text-sm text-[var(--lm-text-faint)]">
-                          {course.totalAttempts === 0 ? "No quiz attempts yet for this course." : "No at-risk students — everyone's averaging above 60%."}
-                        </p>
+                                    {isExpanded && (
+                    <div className="border-t border-[var(--lm-border)] p-5 space-y-5">
+                      {course.totalAttempts === 0 ? (
+                        <p className="text-sm text-[var(--lm-text-faint)]">No quiz attempts yet for this course.</p>
                       ) : (
                         <>
-                          <p className="text-xs font-bold text-[var(--lm-text-faint)] uppercase tracking-wider mb-3">At-Risk Students (below 60% average)</p>
-                          <div className="space-y-2">
-                            {course.atRiskStudents.map((s, i) => (
-                              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[var(--lm-surface)] transition-colors">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] flex items-center justify-center text-white text-xs font-bold">
-                                    {s.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                          <div>
+                            <p className="text-xs font-bold text-[var(--lm-text-faint)] uppercase tracking-wider mb-3">All Students ({course.allStudents.length})</p>
+                            <div className="space-y-2">
+                              {course.allStudents.map((s, i) => {
+                                const atRisk = Number(s.averageScore) < 60;
+                                return (
+                                  <div key={i} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[var(--lm-surface)] transition-colors">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] flex items-center justify-center text-white text-xs font-bold">
+                                        {s.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-semibold text-[var(--lm-text)]">{s.fullName}</p>
+                                        <p className="text-[10px] text-[var(--lm-text-faint)]">{s.email}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {atRisk && <Badge color="red">At Risk</Badge>}
+                                      <span className="text-sm font-bold" style={{ color: atRisk ? "#DC2626" : "#059669" }}>{s.averageScore}%</span>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-sm font-semibold text-[var(--lm-text)]">{s.fullName}</p>
-                                    <p className="text-[10px] text-[var(--lm-text-faint)]">{s.email}</p>
-                                  </div>
-                                </div>
-                                <span className="text-sm font-bold text-[#DC2626]">{s.averageScore}%</span>
-                              </div>
-                            ))}
+                                );
+                              })}
+                            </div>
                           </div>
                         </>
                       )}

@@ -4,11 +4,13 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, ResponsiveContai
 import { PRP, IND } from "@/app/lib/constants";
 import { useAuth } from "@/app/context/AuthContext";
 import {
-  getStudentAnalytics, getSkillsHistory, getStreak, getCurrentSkills, ApiError,
+  getStudentAnalytics, getSkillsHistory, getStreak, getCurrentSkills,
+  getStudentCourseAnalytics, listCourses, ApiError,
   type StudentAnalyticsResponse, type QuizAttemptSummary, type StreakResponse, type FieldScore,
+  type CourseProgressResponse, type CourseResponse,
 } from "@/app/lib/api";
-import { exportSkillsAndProgressPdf } from "@/app/lib/exportPdf"; 
-import { Download } from "lucide-react";
+import { exportSkillsAndProgressPdf } from "@/app/lib/exportPdf";
+import { Download, BookOpen } from "lucide-react";
 
 
 // ─── Progress & Analytics page ────────────────────────────────────────────────
@@ -16,7 +18,7 @@ import { Download } from "lucide-react";
 // fabricated session counts, study hours, or resource-usage stats.
 
 export default function ProgressPage() {
-  const { token, user } = useAuth();
+    const { token, user } = useAuth();
   const [analytics, setAnalytics] = useState<StudentAnalyticsResponse | null>(null);
   const [fields, setFields] = useState<FieldScore[]>([]);
   const [history, setHistory] = useState<QuizAttemptSummary[]>([]);
@@ -24,13 +26,35 @@ export default function ProgressPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [courses, setCourses] = useState<CourseResponse[]>([]);
+  const [viewMode, setViewMode] = useState<"overall" | "subject">("overall");
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [courseProgress, setCourseProgress] = useState<CourseProgressResponse | null>(null);
+  const [loadingCourse, setLoadingCourse] = useState(false);
+
   useEffect(() => {
     if (!token) return;
-    Promise.all([getStudentAnalytics(token), getSkillsHistory(token), getStreak(token), getCurrentSkills(token)])
-      .then(([a, h, s, f]) => { setAnalytics(a); setHistory(h); setStreak(s); setFields(f); })
+    Promise.all([getStudentAnalytics(token), getSkillsHistory(token), getStreak(token), getCurrentSkills(token), listCourses(token)])
+      .then(([a, h, s, f, c]) => { setAnalytics(a); setHistory(h); setStreak(s); setFields(f); setCourses(c); })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load progress data."))
       .finally(() => setLoading(false));
   }, [token]);
+
+  async function loadCourseProgress(id: string) {
+    if (!token) return;
+    if (!id) { setViewMode("overall"); return; }
+    setSelectedCourseId(id);
+    setViewMode("subject");
+    setLoadingCourse(true);
+    try {
+      const data = await getStudentCourseAnalytics(id, token);
+      setCourseProgress(data);
+    } catch {
+      setCourseProgress(null);
+    } finally {
+      setLoadingCourse(false);
+    }
+  }
 
   // Chronological (oldest first) for a proper left-to-right trend line
   const trendData = useMemo(() => {
@@ -107,8 +131,65 @@ export default function ProgressPage() {
         </button>
       </div>
 
-      {analytics && (
+            {analytics && (
         <>
+          <div className="flex items-center gap-3 bg-[var(--lm-card-bg)] border border-[var(--lm-border)] rounded-2xl p-3">
+            <BookOpen size={16} className="text-[var(--lm-text-faint)] flex-shrink-0" />
+            <select
+              value={viewMode === "subject" ? selectedCourseId : ""}
+              onChange={(e) => loadCourseProgress(e.target.value)}
+              className="flex-1 bg-transparent text-sm outline-none text-[var(--lm-text)]"
+            >
+              <option value="">All Subjects (Overall)</option>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
+            </select>
+          </div>
+
+          {viewMode === "subject" ? (
+            <div className="bg-[var(--lm-card-bg)] rounded-2xl border border-[var(--lm-border)] p-5 shadow-sm">
+              {loadingCourse && <p className="text-sm text-[var(--lm-text-faint)]">Loading…</p>}
+              {!loadingCourse && courseProgress && (
+                <>
+                  <h3 className="font-bold text-[var(--lm-text)] mb-1">{courseProgress.courseCode} — {courseProgress.courseTitle}</h3>
+                  {courseProgress.quizzesTaken === 0 ? (
+                    <p className="text-sm text-[var(--lm-text-faint)] mt-3">No quiz attempts yet in this subject.</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 my-4">
+                        <div className="bg-[var(--lm-surface)] rounded-xl p-4 text-center">
+                          <p className="text-2xl font-extrabold" style={{ color: PRP }}>{courseProgress.quizzesTaken}</p>
+                          <p className="text-xs text-[var(--lm-text-faint)] mt-1">Quizzes Taken</p>
+                        </div>
+                        <div className="bg-[var(--lm-surface)] rounded-xl p-4 text-center">
+                          <p className="text-2xl font-extrabold" style={{ color: PRP }}>{courseProgress.averageScore}%</p>
+                          <p className="text-xs text-[var(--lm-text-faint)] mt-1">Average Score</p>
+                        </div>
+                      </div>
+                      <p className="text-xs font-bold text-[var(--lm-text-faint)] uppercase tracking-wider mb-2">Skills in this Subject</p>
+                      <div className="space-y-2 mb-4">
+                        {courseProgress.skills.map((s) => (
+                          <div key={s.skillArea} className="flex items-center justify-between text-sm">
+                            <span className="text-[var(--lm-text)]">{s.skillArea}</span>
+                            <span className="font-bold" style={{ color: Number(s.averageScore) >= 60 ? "#059669" : "#DC2626" }}>{s.averageScore}%</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs font-bold text-[var(--lm-text-faint)] uppercase tracking-wider mb-2">Recent Attempts</p>
+                      <div className="space-y-1">
+                        {courseProgress.recentAttempts.map((a, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs text-[var(--lm-text-faint)]">
+                            <span>{a.quizTitle}</span>
+                            <span>{a.score}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="bg-[var(--lm-card-bg)] rounded-2xl border border-[var(--lm-border)] p-6 shadow-sm">
               <div className="flex items-center justify-between mb-2">
@@ -214,6 +295,8 @@ export default function ProgressPage() {
               </div>
             </div>
           </div>
+                </>
+          )}
         </>
       )}
     </div>

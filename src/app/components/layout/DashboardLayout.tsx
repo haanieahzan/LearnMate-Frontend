@@ -45,10 +45,7 @@ export function DashboardLayout() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--lm-text-faint)]" />
               <input placeholder="Search…" className="bg-[var(--lm-surface)] rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#7C3AED]/20 w-44 text-[var(--lm-text)] placeholder:text-[var(--lm-text-faint)]" />
             </div>
-            <button type="button" aria-label="Notifications" className="relative p-2 rounded-xl hover:bg-[var(--lm-surface)] text-[var(--lm-text-muted)] transition-colors">
-              <Bell size={17} />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#EF4444] rounded-full" />
-            </button>
+            
             <button type="button" onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl hover:bg-[var(--lm-surface)] text-[var(--lm-text-muted)] transition-colors">
               {darkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
